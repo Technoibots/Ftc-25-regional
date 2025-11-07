@@ -89,8 +89,8 @@ public class MecanumDrive extends OpMode {
             }
         }
 
-        // Shooter com PID
-        double targetVelocity = 2500; // ticks por segundo (ajuste conforme necessário)
+       // Shooter com PID
+        double targetVelocity = 6000; // ticks por segundo (ajuste conforme necessário)
         double output1 = pidShooter1.calculate(targetVelocity, shooterMotor.getVelocity());
         double output2 = pidShooter2.calculate(targetVelocity, shooterMotor2.getVelocity());
 
@@ -120,6 +120,7 @@ public class MecanumDrive extends OpMode {
         } else if (!gamepad2.b) {
             bufferMotor.setPower(0);
         }
+
 
         // ===== TELEMETRIA =====
         telemetry.addData("FL", frontLeft.getPower());
