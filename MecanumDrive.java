@@ -18,19 +18,16 @@ public class MecanumDrive extends OpMode {
 
     @Override
     public void init() {
-        // ---- Motores de locomoção ----
         frontLeft  = hardwareMap.get(DcMotor.class, "frontLeft");
         frontRight = hardwareMap.get(DcMotor.class, "frontRight");
         backLeft   = hardwareMap.get(DcMotor.class, "backLeft");
         backRight  = hardwareMap.get(DcMotor.class, "backRight");
 
-        // ---- Sub-sistemas ----
         intakeMotor   = hardwareMap.get(DcMotor.class, "intakeMotor");
         shooterMotor  = hardwareMap.get(DcMotorEx.class, "shooterMotor");
         shooterMotor2 = hardwareMap.get(DcMotorEx.class, "shooterMotor2");
         bufferMotor   = hardwareMap.get(DcMotor.class, "bufferMotor");
 
-        // ---- Direções ----
         frontLeft.setDirection(DcMotor.Direction.FORWARD);
         backLeft.setDirection(DcMotor.Direction.REVERSE);
         frontRight.setDirection(DcMotor.Direction.FORWARD);
@@ -41,97 +38,93 @@ public class MecanumDrive extends OpMode {
         shooterMotor2.setDirection(DcMotor.Direction.FORWARD);
         bufferMotor.setDirection(DcMotor.Direction.FORWARD);
 
-        // ---- Configurações iniciais ----
         shooterMotor.setMode(DcMotor.RunMode.RUN_WITHOUT_ENCODER);
         shooterMotor2.setMode(DcMotor.RunMode.RUN_WITHOUT_ENCODER);
 
-        // ---- Inicialização dos controladores PID ----
-        pidShooter1 = new PIDController(0.4, 0.0, 0.0, 0.0, PIDController.Mode.VELOCITY, 28);
-        pidShooter2 = new PIDController(0.4, 0.0, 0.0, 0.0, PIDController.Mode.VELOCITY, 28);
+        pidShooter1 = new PIDController(0.1, 0, 0, 0, PIDController.Mode.VELOCITY, 28);
+        pidShooter2 = new PIDController(0.1, 0, 0, 0, PIDController.Mode.VELOCITY, 28);
 
-        telemetry.addData("Status", "Inicializado com sucesso!");
+        telemetry.addData("Status", "Inicializado!");
         telemetry.update();
     }
 
     @Override
     public void loop() {
-        // ===== CONTROLE DO DRIVE TRAIN (gamepad1) =====
-        double y  = -gamepad1.left_stick_y;  // frente (+), trás (-)
-        double x  = gamepad1.left_stick_x;   // esquerda (-), direita (+)
-        double rx = gamepad1.right_stick_x;  // giro
 
-        double frontLeftPower  = y + x + rx;
-        double backLeftPower   = y - x + rx;
-        double frontRightPower = y - x - rx;
-        double backRightPower  = y + x - rx;
+        // ===== DRIVE =====
+        double y  = -gamepad1.left_stick_y;
+        double x  = gamepad1.left_stick_x;
+        double rx = gamepad1.right_stick_x;
+
+        double fl = y + x + rx;
+        double bl = y - x + rx;
+        double fr = y - x - rx;
+        double br = y + x - rx;
 
         double max = Math.max(1.0,
-                Math.max(Math.abs(frontLeftPower),
-                Math.max(Math.abs(backLeftPower),
-                Math.max(Math.abs(frontRightPower), Math.abs(backRightPower)))));
+                Math.max(Math.abs(fl),
+                Math.max(Math.abs(bl),
+                Math.max(Math.abs(fr), Math.abs(br)))));
 
-        frontLeft.setPower(frontLeftPower / max);
-        backLeft.setPower(backLeftPower / max);
-        frontRight.setPower(frontRightPower / max);
-        backRight.setPower(backRightPower / max);
+        frontLeft.setPower(fl / max);
+        backLeft.setPower(bl / max);
+        frontRight.setPower(fr / max);
+        backRight.setPower(br / max);
 
-        // ===== CONTROLE DOS SUBSISTEMAS (gamepad2) =====
-        // Intake
+        // ===== INTAKE =====
         if (gamepad2.a) {
-            intakeMotor.setPower(0.5); // coleta
+            intakeMotor.setPower(0.5);
         } else if (gamepad2.b) {
-            intakeMotor.setPower(-0.5); // reverso
+            intakeMotor.setPower(-0.5);
             bufferMotor.setPower(-1);
+            shooterMotor.setPower(-1);
+            shooterMotor2.setPower(-1);
         } else {
             intakeMotor.setPower(0);
             if (!gamepad2.right_bumper) {
                 bufferMotor.setPower(0);
             }
         }
-
-       // Shooter com PID
-        double targetVelocity = 6000; // ticks por segundo (ajuste conforme necessário)
-        double output1 = pidShooter1.calculate(targetVelocity, shooterMotor.getVelocity());
-        double output2 = pidShooter2.calculate(targetVelocity, shooterMotor2.getVelocity());
-
-        if (gamepad2.right_trigger > 0.2) {
-            shooterMotor.setPower(output1);
-            shooterMotor2.setPower(output2);
-        } else {
-            shooterMotor.setPower(0);
-            shooterMotor2.setPower(0);
-        }
         
-        double targetVelocity2 = 6000; // ticks por segundo (ajuste conforme necessário)
-        double output3 = pidShooter1.calculate(targetVelocity2, shooterMotor.getVelocity());
-        double output4 = pidShooter2.calculate(targetVelocity2, shooterMotor2.getVelocity());
+        if (gamepad1.y) {
+            bufferMotor.setPower(1);
+        }
+
+        // ===== SHOOTER (2 motores, LT=2000, RT=1000) =====
+        double targetVelocity = 0;
 
         if (gamepad2.left_trigger > 0.2) {
-            shooterMotor.setPower(output3);
-            shooterMotor2.setPower(output4);
+            targetVelocity = 1550;
+        } else if (gamepad2.right_trigger > 0.2) {
+            targetVelocity = 1300;
+            if (gamepad2.right_bumper && Math.abs(shooterMotor.getVelocity() - targetVelocity)<50) {
+                bufferMotor.setPower(1);
+            }
         } else {
             shooterMotor.setPower(0);
             shooterMotor2.setPower(0);
+            targetVelocity = 0;
         }
 
-        // Buffer no RB
+        if (targetVelocity > 0) {
+            double output1 = pidShooter1.calculate(targetVelocity, shooterMotor.getVelocity());
+            double output2 = pidShooter2.calculate(targetVelocity, shooterMotor2.getVelocity());
+
+            shooterMotor.setPower(output1);
+            shooterMotor2.setPower(output2);
+        }
+
+        // ===== BUFFER =====
         if (gamepad2.right_bumper) {
             bufferMotor.setPower(1);
         } else if (!gamepad2.b) {
             bufferMotor.setPower(0);
         }
 
-
         // ===== TELEMETRIA =====
-        telemetry.addData("FL", frontLeft.getPower());
-        telemetry.addData("FR", frontRight.getPower());
-        telemetry.addData("BL", backLeft.getPower());
-        telemetry.addData("BR", backRight.getPower());
-        telemetry.addData("Intake", intakeMotor.getPower());
-        telemetry.addData("Shooter1 vel", shooterMotor.getVelocity());
-        telemetry.addData("Shooter2 vel", shooterMotor2.getVelocity());
-        telemetry.addData("Shooter1 PID out", output1);
-        telemetry.addData("Shooter2 PID out", output2);
+        telemetry.addData("Shooter1 Vel", shooterMotor.getVelocity());
+        telemetry.addData("Shooter2 Vel", shooterMotor2.getVelocity());
+        telemetry.addData("Target Vel", targetVelocity);
         telemetry.addData("Buffer", bufferMotor.getPower());
         telemetry.update();
     }
